@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🔥 男装 P0 丰富度货盘 🔥</title>
+<title>男装高增速补贴倾斜P0商品推荐池</title>
 <style>
   :root {
     /* 紫粉渐变主题 */
@@ -63,7 +63,7 @@
     text-shadow: 0 2px 8px rgba(0,0,0,.15);
   }
   .hero .sub { margin-top:8px; font-size:13px; opacity:.9; letter-spacing:.3px; }
-  .hero-actions { display:flex; gap:10px; }
+  .hero-actions { display:flex; gap:10px; flex-wrap:wrap; }
   .hero-actions button {
     background: rgba(255,255,255,.95); color: var(--brand-strong);
     border:0; border-radius:10px;
@@ -105,6 +105,7 @@
   .filter-field { display:flex; flex-direction:column; gap:5px; flex: 0 1 142px; min-width:128px; }
   .filter-field.search-field { flex: 1 1 260px; min-width:220px; }
   .filter-field label { font-size:11px; color:#666; line-height:1; padding-left:2px; }
+  .filter-hint { flex: 1 1 100%; font-size:12px; color:#777; margin-top:-4px; }
   .filters input, .filters select {
     width:100%; height:38px; border:1px solid var(--line); border-radius:10px; padding: 0 12px;
     font-size:13px; background:#fff; color:var(--ink); outline:none;
@@ -348,10 +349,11 @@
 <header class="hero">
   <div class="hero-row">
     <div>
-      <h1>🔥 男装 P0 丰富度货盘</h1>
+      <h1>男装高增速补贴倾斜 P0 商品推荐池</h1>
     </div>
     <div class="hero-actions">
-      <button id="btn-export">📤 导出 Excel</button>
+      <button id="btn-export">📤 导出表格</button>
+      <button id="btn-export-img" title="导出为 Excel，并在表格中插入商品图片（较慢）">🖼️ 导出表格（含图片）</button>
       <button class="ghost" id="btn-upload" title="预留">上传明细</button>
     </div>
   </div>
@@ -366,12 +368,17 @@
   <div class="filters">
     <div class="filter-field search-field"><input class="search" id="q" placeholder="🔍 搜索 商品ID / 商品名 / 类目 / 店铺" /><label>关键词搜索</label></div>
     <div class="filter-field"><select id="f-country"><option value="">全部国家</option></select><label>国家（SPU集合）</label></div>
+    <div class="filter-hint">
+      说明：这里选国家表示 <b>该 SPU 在该国有上架 PID</b>；列表中展示的是该 SPU 下的商品明细，不代表该国“主推”或“只投放该国”。
+      <span style="margin-left:10px">导出规则：<b>商品池</b>点「导出 Excel」= 导出当前筛选的全量；<b>圈品池</b>点「导出 Excel」= 仅导出已圈选商品。</span>
+    </div>
     <div class="filter-field"><select id="f-cat2"><option value="">全部二级类目</option></select><label>二级类目</label></div>
     <div class="filter-field"><select id="f-cat3"><option value="">全部三级类目</option></select><label>三级类目</label></div>
     <div class="filter-field"><select id="f-listing"><option value="">全部上架时间</option></select><label>上架时间</label></div>
     <div class="filter-field"><select id="f-price"><option value="">全部到手价</option></select><label>到手价</label></div>
     <div class="filter-field"><select id="f-stock"><option value="">全部库存</option></select><label>库存</label></div>
-    <div class="filter-field"><select id="f-score"><option value="">全部商品评分</option></select><label>商品评分</label></div>
+    <div class="filter-field"><select id="f-growth"><option value="">全部增速</option></select><label>增速</label></div>
+    <div class="filter-field"><select id="f-buyer"><option value="">全部买手</option></select><label>买手</label></div>
     <div class="filter-field"><select id="f-sps"><option value="">全部店铺SPS分</option></select><label>店铺SPS分</label></div>
     <div class="filter-field"><select id="f-jit"><option value="">全部JIT备货</option></select><label>JIT备货</label></div>
     <div class="filter-field"><select id="f-video"><option value="">全部短视频占比</option></select><label>短视频占比</label></div>
@@ -406,6 +413,9 @@
     <div class="modal-body" id="modal-body"></div>
   </div>
 </div>
+
+<!-- Excel 导出（含图片）依赖：ExcelJS（纯前端，无后端） -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <script>
 // ===== 数据加载：优先同源，其次 raw.githubusercontent.com / jsdelivr 兜底 =====
@@ -656,9 +666,6 @@ function bucketByBins(n) {
   return "无评分";
 }
 
-function scoreBucket(r) {
-  return bucketByBins(numVal(r.final_score));
-}
 function spsBucket(r) {
   return bucketByBins(numVal(r.shop_sps_score));
 }
@@ -673,6 +680,15 @@ function buildRatingOptions(getBucketFn) {
   if ((cnt.get("无评分") || 0) > 0) out.push("无评分");
   return out;
 }
+
+function growthBucket(r) {
+  const g = (r["增速分级"] || "").trim();
+  if (!g) return "无分级";
+  if (g === "高增长") return "高增速";
+  if (g === "中增长") return "中增速";
+  if (g === "增长") return "增长";
+  return g;
+}
 function yesNoBucket(v) { return String(v).trim() === "1" ? "是" : "否"; }
 
 // ---------- 筛选 ----------
@@ -686,7 +702,8 @@ function filterRows() {
   const listing = document.getElementById("f-listing").value;
   const price = document.getElementById("f-price").value;
   const stock = document.getElementById("f-stock").value;
-  const score = document.getElementById("f-score").value;
+  const growth = document.getElementById("f-growth").value;
+  const buyer = document.getElementById("f-buyer").value;
   const sps = document.getElementById("f-sps").value;
   const jit = document.getElementById("f-jit").value;
   return ALL.filter(r => {
@@ -696,7 +713,8 @@ function filterRows() {
     if (listing && listingBucket(r) !== listing) return false;
     if (price && priceBucket(r) !== price) return false;
     if (stock && stockBucket(r) !== stock) return false;
-    if (score && scoreBucket(r) !== score) return false;
+    if (growth && growthBucket(r) !== growth) return false;
+    if (buyer && (String(r["买手"] || "").trim() !== buyer)) return false;
     if (sps && spsBucket(r) !== sps) return false;
     if (jit && yesNoBucket(r.has_jit_sku) !== jit) return false;
     if (v && r["短视频占比区间"] !== v) return false;
@@ -760,8 +778,7 @@ function cardHTML(r, idx) {
       <div class="tags">
         <span class="tag vid">短视频 ${esc(r["短视频占比区间"]) || "未知"}</span>
         ${r["近7天销量分档"] ? `<span class="tag sales">7D销量 ${esc(r["近7天销量分档"])}</span>` : ""}
-        ${r["增速分级"] ? `<span class="tag growth">增速 ${esc(r["增速分级"])}</span>` : ""}
-        <span class="tag">评分 ${esc(r.final_score) || "-"}</span>
+        ${r["增速分级"] ? `<span class="tag growth">增速 ${esc(growthBucket(r))}</span>` : ""}
         <span class="tag sps">SPS <b>${esc(r.shop_sps_score) || "-"}</b></span>
         ${r.has_jit_sku === "1" ? '<span class="tag jit">JIT</span>' : ""}
         ${r.has_combo_sku === "1" ? '<span class="tag combo">套装</span>' : ""}
@@ -828,6 +845,7 @@ function openModal(pid) {
         <div class="kv"><span class="k">PID（当前）</span><span class="v">${esc(r.product_id)}</span></div>
         <div class="kv"><span class="k">SPU 编码</span><span class="v">${esc(r.spu_code) || "-"}</span></div>
         <div class="kv"><span class="k">店铺</span><span class="v">${esc(r.shop_name) || "-"}</span></div>
+        <div class="kv"><span class="k">买手</span><span class="v">${esc(r["买手"]) || "-"}</span></div>
         <div class="kv"><span class="k">店铺 SPS 分</span><span class="v"><span class="tag sps">SPS <b>${esc(r.shop_sps_score) || "-"}</b></span></span></div>
         <div class="kv"><span class="k">二级类目</span><span class="v">${esc(r.second_category_name) || "-"}</span></div>
         <div class="kv"><span class="k">三级类目</span><span class="v">${esc(r.third_category_name) || "-"}</span></div>
@@ -836,7 +854,6 @@ function openModal(pid) {
         <div class="kv"><span class="k">库存</span><span class="v">${esc(r.stock) || 0}</span></div>
         <div class="kv"><span class="k">近7天销量分档</span><span class="v">${esc(r["近7天销量分档"]) || "-"}</span></div>
         <div class="kv"><span class="k">增速分级</span><span class="v">${esc(r["增速分级"]) || "-"}</span></div>
-        <div class="kv"><span class="k">商品评分</span><span class="v">${esc(r.final_score) || "-"}</span></div>
         <div class="kv"><span class="k">上架日期</span><span class="v">${esc(r.first_success_audit_date) || "-"}</span></div>
         <div class="kv"><span class="k">榜单排名</span><span class="v">#${esc(r.rank) || "-"}</span></div>
       </div>
@@ -922,7 +939,7 @@ function bindEvents() {
     TAB = t.dataset.tab;
     renderPool();
   }));
-  ["q","f-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-score","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
+  ["q","f-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
     document.getElementById(id).addEventListener("input", renderPool);
     document.getElementById(id).addEventListener("change", renderPool);
   });
@@ -959,12 +976,13 @@ function bindEvents() {
   });
   document.getElementById("btn-refresh").addEventListener("click", () => location.reload());
   document.getElementById("btn-reset").addEventListener("click", () => {
-    ["q","f-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-score","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
+    ["q","f-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
       document.getElementById(id).value = "";
     });
     renderPool();
   });
   document.getElementById("btn-export").addEventListener("click", exportCSV);
+  document.getElementById("btn-export-img").addEventListener("click", () => { exportExcelWithImages(); });
 
   // Modal 关闭
   document.getElementById("modal-close").addEventListener("click", closeModal);
@@ -991,7 +1009,6 @@ const EXPORT_COLUMNS = [
   ["stock",                "库存"],
   ["近7天销量分档",        "近7天销量分档"],
   ["增速分级",             "增速分级"],
-  ["final_score",          "商品评分"],
   ["P0丰富度标签",         "P0丰富度标签"],
   ["GPM分层",              "GPM分层"],
   ["短视频占比区间",       "短视频占比区间"],
@@ -1007,11 +1024,26 @@ function csvEscape(v) {
   return s;
 }
 
-function exportCSV() {
-  // 1. 当前筛选（或圈品池）行集合
-  const baseRows = TAB === "picked"
+function getExportBaseRows() {
+  return TAB === "picked"
     ? ALL.filter(r => PICKED.has(r.product_id))
     : filterRows();
+}
+
+function buildExpandedPidByCountry(spuCode, fallbackRow) {
+  const group = SPU_MAP.get(spuCode) || [fallbackRow];
+  const byCountry = {};
+  group.forEach(g => {
+    const c = g.country || "";
+    if (!c) return;
+    (byCountry[c] = byCountry[c] || []).push(g.product_id);
+  });
+  return { byCountry, spuCountryCount: Object.keys(byCountry).length, spuPidCount: group.length };
+}
+
+function exportCSV() {
+  // 1. 当前筛选（或圈品池）行集合
+  const baseRows = getExportBaseRows();
   if (!baseRows.length) { alert("当前没有可导出的商品"); return; }
 
   // 2. 涉及的国家列（按全量 data.csv 的国家顺序）
@@ -1027,16 +1059,7 @@ function exportCSV() {
 
   // 4. 每行输出：以当前行为基准，把该 SPU 下各国 PID 展开（同国多 PID 用 , 拼接）
   const bodyLines = baseRows.map(r => {
-    const group = SPU_MAP.get(r.spu_code) || [r];
-    const byCountry = {};
-    group.forEach(g => {
-      const c = g.country || "";
-      if (!c) return;
-      (byCountry[c] = byCountry[c] || []).push(g.product_id);
-    });
-    const spuCountryCount = Object.keys(byCountry).length;
-    const spuPidCount = group.length;
-
+    const { byCountry, spuCountryCount, spuPidCount } = buildExpandedPidByCountry(r.spu_code, r);
     const line = [
       ...EXPORT_COLUMNS.map(([k]) => csvEscape(r[k])),
       ...countryCols.map(c => csvEscape((byCountry[c] || []).join(","))),
@@ -1052,6 +1075,106 @@ function exportCSV() {
   const a = document.createElement("a");
   a.href = url;
   a.download = `men_p0_export_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function fetchImageAsData(url) {
+  // 可能会遇到跨域限制：失败时返回 null
+  try {
+    const r = await fetch(url, { mode: "cors" });
+    if (!r.ok) return null;
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+    const ab = await r.arrayBuffer();
+    let ext = "jpeg";
+    if (ct.includes("png")) ext = "png";
+    else if (ct.includes("webp")) ext = "webp";
+    else if (ct.includes("gif")) ext = "gif";
+    else if (ct.includes("jpg") || ct.includes("jpeg")) ext = "jpeg";
+    return { buffer: ab, extension: ext };
+  } catch (e) {
+    return null;
+  }
+}
+
+async function exportExcelWithImages() {
+  const baseRows = getExportBaseRows();
+  if (!baseRows.length) { alert("当前没有可导出的商品"); return; }
+
+  // 太多行会非常慢（需要下载图片）；这里自动降级为普通导出
+  const HARD_CAP = 200;
+  if (baseRows.length > HARD_CAP) {
+    alert(`当前要导出 ${baseRows.length} 行，含图片导出会非常慢，已自动改为普通导出（不含图片）。建议先圈品后在圈品池导出。`);
+    exportCSV();
+    return;
+  }
+
+  if (typeof ExcelJS === "undefined") {
+    alert("Excel 导出组件加载失败，请刷新页面后重试");
+    return;
+  }
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("商品池");
+
+  // 列设计：图片列 + 文字列（不放敏感数值）
+  const baseHeaders = [
+    ["img", "商品图片"],
+    ...EXPORT_COLUMNS,
+  ];
+
+  ws.columns = baseHeaders.map(([k, cn]) => {
+    if (k === "img") return { header: cn, key: k, width: 16 };
+    if (k === "product_name") return { header: cn, key: k, width: 40 };
+    if (k === "shop_name") return { header: cn, key: k, width: 22 };
+    return { header: cn, key: k, width: 14 };
+  });
+
+  // 表头行
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
+  ws.getRow(1).height = 20;
+
+  // 数据行
+  for (let i = 0; i < baseRows.length; i++) {
+    const r = baseRows[i];
+    const rowIndex = i + 2;
+    const rowObj = {};
+    EXPORT_COLUMNS.forEach(([k]) => { rowObj[k] = r[k] == null ? "" : String(r[k]); });
+    ws.addRow({ img: "", ...rowObj });
+
+    // 行高：给图片留空间
+    ws.getRow(rowIndex).height = 70;
+    ws.getRow(rowIndex).alignment = { vertical: "middle", wrapText: true };
+
+    // 插图
+    const imgUrl = (r.image_url || "").trim();
+    if (imgUrl) {
+      const imgData = await fetchImageAsData(imgUrl);
+      if (imgData) {
+        const imgId = wb.addImage({ buffer: imgData.buffer, extension: imgData.extension });
+        // 放在 A 列对应行
+        ws.addImage(imgId, {
+          tl: { col: 0.15, row: rowIndex - 1 + 0.1 },
+          ext: { width: 90, height: 90 }
+        });
+      } else {
+        // 跨域失败：保底在图片列写链接
+        ws.getCell(`A${rowIndex}`).value = imgUrl;
+        ws.getCell(`A${rowIndex}`).font = { color: { argb: "FF1E6EEB" }, underline: true };
+      }
+    }
+  }
+
+  // 冻结表头
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `men_p0_export_with_images_${new Date().toISOString().slice(0,10)}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1079,7 +1202,12 @@ Promise.all([
   fillSelect("f-listing", FILTER_OPTIONS.listing);
   fillSelect("f-price", FILTER_OPTIONS.price);
   fillSelect("f-stock", FILTER_OPTIONS.stock);
-  fillSelect("f-score", buildRatingOptions(scoreBucket));
+  fillSelect("f-growth", ["高增速", "中增速", "增长", "无分级"]);
+  // 买手筛选：即使当前数据里暂时没有 Summer，也固定出现在筛选器里，方便后续刷新直接可用
+  const BUYER_WHITELIST = ["马冬冬","毛月月","晏然","胡婧","安卓一","贾凤琴","Summer 夏天","王天钰"]; 
+  const buyersInData = uniqSorted(ALL.map(r => String(r["买手"] || "").trim())).filter(x => x);
+  const buyerOptions = uniqSorted([...BUYER_WHITELIST, ...buyersInData]);
+  fillSelect("f-buyer", buyerOptions);
   fillSelect("f-sps", buildRatingOptions(spsBucket));
   fillSelect("f-jit", FILTER_OPTIONS.yesNo);
 
