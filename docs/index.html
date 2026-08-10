@@ -161,9 +161,9 @@
   .stat .label { color: var(--muted); font-size:12px; }
 
   /* ===== Product grid ===== */
-  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap:16px; padding: 0 40px 40px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; padding: 0 32px 36px; }
   .card {
-    background:#fff; border:1px solid var(--line-soft); border-radius:14px; overflow:hidden;
+    background:#fff; border:1px solid var(--line-soft); border-radius:12px; overflow:hidden;
     display:flex; flex-direction:column; cursor: pointer;
     transition: transform .15s ease, box-shadow .18s ease, border-color .15s;
   }
@@ -202,11 +202,14 @@
   .card .cover .select {
     position:absolute; right:8px; top:8px;
     background: rgba(27,27,46,.7); color:#fff; font-size:11px; font-weight:600;
-    padding: 5px 10px; border-radius: 14px; cursor:pointer;
+    padding: 4px 9px; border-radius: 14px; cursor:pointer;
     backdrop-filter: blur(6px);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
   .card .cover .select.on { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
-  .card .body { padding: 12px 14px 14px; display:flex; flex-direction:column; gap:6px; font-size:12px; color: var(--ink-soft); }
+  .card .body { padding: 10px 12px 12px; display:flex; flex-direction:column; gap:6px; font-size:12px; color: var(--ink-soft); }
   .card .body .lbl { color: var(--muted); margin-right:4px; }
   .card .pid-line { font-size:12px; }
   .card .pid-line a { font-weight:600; color: var(--brand-strong); }
@@ -236,6 +239,8 @@
   }
   .tag.sps b { font-weight:600; }
   .tag.vid { background:#F3EAFC; color:#8A2BE2; }
+  .tag.sales { background:#EAF7F2; color:#0D7A4E; font-weight:600; }
+  .tag.growth { background:#FFEAF1; color:#C2185B; font-weight:600; }
   .tag.jit { background:#E8F4FF; color:#1E6EEB; font-weight:600; }
   .tag.combo { background:#FFF3D6; color:#B87B00; font-weight:600; }
   .card .foot { font-size:11px; color: var(--muted); }
@@ -403,8 +408,59 @@
 </div>
 
 <script>
-const CSV_URL = "data.csv?ts=" + Date.now();
-const SPU_PID_MAP_URL = "spu_country_pid_map.csv?ts=" + Date.now();
+// ===== 数据加载：优先同源，其次 raw.githubusercontent.com / jsdelivr 兜底 =====
+const REPO_SLUG = "xqx1568-source/product_recommend1";
+
+function baseDirUrl() {
+  const p = location.pathname || "/";
+  // 1) /repo/  -> /repo/
+  // 2) /repo/index.html -> /repo/
+  // 3) /repo  -> /repo/  （避免用户复制少了结尾 / 导致相对路径错位）
+  let dir = p;
+  if (dir.endsWith("/")) {
+    // ok
+  } else {
+    const last = dir.split("/").pop() || "";
+    if (last.includes(".")) {
+      dir = dir.slice(0, dir.lastIndexOf("/") + 1);
+    } else {
+      dir = dir + "/";
+    }
+  }
+  return location.origin + dir;
+}
+
+function withTs(url) {
+  return url + (url.includes("?") ? "&" : "?") + "ts=" + Date.now();
+}
+
+const BASE_DIR = baseDirUrl();
+const CSV_URLS = [
+  withTs(BASE_DIR + "data.csv"),
+  withTs(`https://raw.githubusercontent.com/${REPO_SLUG}/main/docs/data.csv`),
+  withTs(`https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/docs/data.csv`),
+];
+const SPU_PID_MAP_URLS = [
+  withTs(BASE_DIR + "spu_country_pid_map.csv"),
+  withTs(`https://raw.githubusercontent.com/${REPO_SLUG}/main/docs/spu_country_pid_map.csv`),
+  withTs(`https://cdn.jsdelivr.net/gh/${REPO_SLUG}@main/docs/spu_country_pid_map.csv`),
+];
+
+async function fetchFirstText(urls, opts) {
+  const tried = [];
+  for (const u of urls) {
+    tried.push(u);
+    try {
+      const r = await fetch(u, opts);
+      if (r.ok) return { text: await r.text(), url: u };
+    } catch (e) {
+      // ignore
+    }
+  }
+  const err = new Error("Failed to fetch");
+  err.tried = tried;
+  throw err;
+}
 
 let ALL = [];              // 全量 P0 池商品（主列表保持不变）
 let PICKED = new Set();    // 圈品池 pid
@@ -417,10 +473,10 @@ let PID_DETAIL_MAP = new Map(); // product_id -> P0 池行；补全 PID 若不�
 // 国家中文名映射（用于导出表头 + Modal 展示）
 const COUNTRY_CN = {
   US: "美国", GB: "英国", MX: "墨西哥", DE: "德国",
-  FR: "法国", ES: "西班牙", IT: "意大利", JP: "日本",
+  FR: "法国", ES: "西班牙", IT: "意大利",
   BR: "巴西", CA: "加拿大", AU: "澳大利亚", ID: "印尼",
   TH: "泰国", VN: "越南", MY: "马来西亚", PH: "菲律宾",
-  SG: "新加坡", SA: "沙特", AE: "阿联酋"
+  SG: "新加坡", AE: "阿联酋"
 };
 function countryCN(code){ return COUNTRY_CN[code] || code || "-"; }
 
@@ -545,10 +601,18 @@ const FILTER_OPTIONS = {
   listing: ["近 7 天", "近 30 天", "近 90 天", "90 天以上", "未知"],
   price: ["< $10", "$10 - $30", "$30 - $60", "$60 +", "未知"],
   stock: ["有货", "缺货"],
-  score: ["≥ 4.5", "4.0 - 4.5", "< 4.0", "无评分"],
-  sps: ["≥ 4.5 优质", "4.0 - 4.5 良好", "< 4.0 一般", "无评分"],
   yesNo: ["是", "否"]
 };
+
+// 评分分段：只展示“区间段”，不使用“大于/小于”类文案
+const RATING_BINS = [5.0, 4.5, 4.0, 3.5, 3.0, 0.0];
+const RATING_BUCKET_ORDER = [
+  "5.0~4.5",
+  "4.5~4.0",
+  "4.0~3.5",
+  "3.5~3.0",
+  "3.0~0.0",
+];
 
 function numVal(v) {
   if (v == null || String(v).trim() === "") return NaN;
@@ -577,19 +641,37 @@ function priceBucket(r) {
   return "$60 +";
 }
 function stockBucket(r) { return numVal(r.stock) > 0 ? "有货" : "缺货"; }
-function scoreBucket(r) {
-  const n = numVal(r.final_score);
+function bucketByBins(n) {
   if (!Number.isFinite(n) || n <= 0) return "无评分";
-  if (n >= 4.5) return "≥ 4.5";
-  if (n >= 4.0) return "4.0 - 4.5";
-  return "< 4.0";
+  // clamp
+  const x = Math.min(5.0, n);
+  for (let i = 0; i < RATING_BINS.length - 1; i++) {
+    const hi = RATING_BINS[i];
+    const lo = RATING_BINS[i + 1];
+    // 半开区间：(lo, hi] 让 4.0 落在 4.0~3.5，4.5 落在 4.5~4.0
+    if (x <= hi && x > lo) {
+      return `${hi.toFixed(1)}~${lo.toFixed(1)}`;
+    }
+  }
+  return "无评分";
+}
+
+function scoreBucket(r) {
+  return bucketByBins(numVal(r.final_score));
 }
 function spsBucket(r) {
-  const n = numVal(r.shop_sps_score);
-  if (!Number.isFinite(n) || n <= 0) return "无评分";
-  if (n >= 4.5) return "≥ 4.5 优质";
-  if (n >= 4.0) return "4.0 - 4.5 良好";
-  return "< 4.0 一般";
+  return bucketByBins(numVal(r.shop_sps_score));
+}
+
+function buildRatingOptions(getBucketFn) {
+  const cnt = new Map();
+  ALL.forEach(r => {
+    const b = getBucketFn(r);
+    cnt.set(b, (cnt.get(b) || 0) + 1);
+  });
+  const out = RATING_BUCKET_ORDER.filter(b => (cnt.get(b) || 0) > 0);
+  if ((cnt.get("无评分") || 0) > 0) out.push("无评分");
+  return out;
 }
 function yesNoBucket(v) { return String(v).trim() === "1" ? "是" : "否"; }
 
@@ -677,6 +759,8 @@ function cardHTML(r, idx) {
       </div>
       <div class="tags">
         <span class="tag vid">短视频 ${esc(r["短视频占比区间"]) || "未知"}</span>
+        ${r["近7天销量分档"] ? `<span class="tag sales">7D销量 ${esc(r["近7天销量分档"])}</span>` : ""}
+        ${r["增速分级"] ? `<span class="tag growth">增速 ${esc(r["增速分级"])}</span>` : ""}
         <span class="tag">评分 ${esc(r.final_score) || "-"}</span>
         <span class="tag sps">SPS <b>${esc(r.shop_sps_score) || "-"}</b></span>
         ${r.has_jit_sku === "1" ? '<span class="tag jit">JIT</span>' : ""}
@@ -734,6 +818,8 @@ function openModal(pid) {
         <span class="tag p0">丰富度P0</span>
         <span class="tag ${gpmClass(r["GPM分层"])}">${esc(r["GPM分层"]) || "-"}</span>
         <span class="tag vid">短视频 ${esc(r["短视频占比区间"]) || "未知"}</span>
+        ${r["近7天销量分档"] ? `<span class="tag sales">7D销量 ${esc(r["近7天销量分档"])}</span>` : ""}
+        ${r["增速分级"] ? `<span class="tag growth">增速 ${esc(r["增速分级"])}</span>` : ""}
         <span class="tag rank">#${esc(r.rank) || "-"}</span>
         ${r.has_jit_sku === "1" ? '<span class="tag jit">JIT 备货</span>' : ""}
         ${r.has_combo_sku === "1" ? '<span class="tag combo">套装 SKU</span>' : ""}
@@ -748,6 +834,8 @@ function openModal(pid) {
         <div class="kv"><span class="k">国家（当前）</span><span class="v">${region} · ${countryCN(region)}</span></div>
         <div class="kv"><span class="k">到手价</span><span class="v price">$${esc(r.deal_price) || "-"}</span></div>
         <div class="kv"><span class="k">库存</span><span class="v">${esc(r.stock) || 0}</span></div>
+        <div class="kv"><span class="k">近7天销量分档</span><span class="v">${esc(r["近7天销量分档"]) || "-"}</span></div>
+        <div class="kv"><span class="k">增速分级</span><span class="v">${esc(r["增速分级"]) || "-"}</span></div>
         <div class="kv"><span class="k">商品评分</span><span class="v">${esc(r.final_score) || "-"}</span></div>
         <div class="kv"><span class="k">上架日期</span><span class="v">${esc(r.first_success_audit_date) || "-"}</span></div>
         <div class="kv"><span class="k">榜单排名</span><span class="v">#${esc(r.rank) || "-"}</span></div>
@@ -839,15 +927,21 @@ function bindEvents() {
     document.getElementById(id).addEventListener("change", renderPool);
   });
 
-  // 卡片点击：区分 Select / PID 链接 / 打开 Modal
-  document.getElementById("content").addEventListener("click", e => {
+  const contentEl = document.getElementById("content");
+
+  // Select：用 pointerdown 提前触发，提升响应速度（避免 click 延迟/等待）
+  contentEl.addEventListener("pointerdown", e => {
     const pickEl = e.target.closest("[data-pick]");
-    if (pickEl) {
-      e.stopPropagation();
-      const pid = pickEl.getAttribute("data-pick");
-      togglePicked(pid, pickEl);
-      return;
-    }
+    if (!pickEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pid = pickEl.getAttribute("data-pick");
+    togglePicked(pid, pickEl);
+  }, { passive: false });
+
+  // 卡片 click：区分 PID 链接 / 打开 Modal（pick 已在 pointerdown 处理）
+  contentEl.addEventListener("click", e => {
+    if (e.target.closest("[data-pick]")) { e.stopPropagation(); return; }
     if (e.target.closest("a")) return; // PID 链接不触发 Modal
     const card = e.target.closest(".card");
     if (card) openModal(card.getAttribute("data-pid"));
@@ -895,6 +989,8 @@ const EXPORT_COLUMNS = [
   ["third_category_name",  "三级类目"],
   ["deal_price",           "到手价(USD)"],
   ["stock",                "库存"],
+  ["近7天销量分档",        "近7天销量分档"],
+  ["增速分级",             "增速分级"],
   ["final_score",          "商品评分"],
   ["P0丰富度标签",         "P0丰富度标签"],
   ["GPM分层",              "GPM分层"],
@@ -962,9 +1058,12 @@ function exportCSV() {
 
 // ---------- Load ----------
 Promise.all([
-  fetch(CSV_URL, { cache: "no-store" }).then(r => r.text()),
-  fetch(SPU_PID_MAP_URL, { cache: "no-store" }).then(r => r.ok ? r.text() : "").catch(() => ""),
-]).then(([txt, mapTxt]) => {
+  fetchFirstText(CSV_URLS, { cache: "no-store" }),
+  fetchFirstText(SPU_PID_MAP_URLS, { cache: "no-store" }).catch(() => ({ text: "", url: "" })),
+]).then(([csvRes, mapRes]) => {
+  const txt = csvRes.text;
+  const mapTxt = mapRes.text;
+
   ALL = parseCSV(txt);
   PID_DETAIL_MAP = buildPidDetailMap(ALL);
   const fullMapRows = normalizeSpuPidRows(parseCSV(mapTxt), ALL);
@@ -980,16 +1079,18 @@ Promise.all([
   fillSelect("f-listing", FILTER_OPTIONS.listing);
   fillSelect("f-price", FILTER_OPTIONS.price);
   fillSelect("f-stock", FILTER_OPTIONS.stock);
-  fillSelect("f-score", FILTER_OPTIONS.score);
-  fillSelect("f-sps", FILTER_OPTIONS.sps);
+  fillSelect("f-score", buildRatingOptions(scoreBucket));
+  fillSelect("f-sps", buildRatingOptions(spsBucket));
   fillSelect("f-jit", FILTER_OPTIONS.yesNo);
 
-  document.getElementById("datacsv-stamp").textContent =
-    `data.csv + spu_country_pid_map.csv · 更新于 ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+  const stamp = `data.csv(${csvRes.url ? "OK" : ""}) + spu_country_pid_map.csv(${mapRes.url ? "OK" : "-"}) · 更新于 ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+  document.getElementById("datacsv-stamp").textContent = stamp;
+
   bindEvents();
   renderPool();
 }).catch(e => {
-  document.getElementById("content").innerHTML = `<div class="empty">加载数据失败：${e}</div>`;
+  const tried = (e && e.tried) ? `<div style="margin-top:8px;font-size:12px;color:#999">已尝试：<br/>${e.tried.map(x => esc(x)).join("<br/>")}</div>` : "";
+  document.getElementById("content").innerHTML = `<div class="empty">加载数据失败：${esc(e && e.message ? e.message : e)}${tried}</div>`;
 });
 </script>
 </body>
