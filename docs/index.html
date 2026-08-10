@@ -172,6 +172,10 @@
     box-shadow: var(--shadow-md);
     border-color: rgba(109,91,208,.35);
   }
+  .card.picked {
+    border-color: rgba(109,91,208,.72);
+    box-shadow: 0 0 0 2px rgba(109,91,208,.12), var(--shadow-sm);
+  }
   .card .cover {
     position:relative;
     width:100%;
@@ -236,7 +240,8 @@
   .tag.combo { background:#FFF3D6; color:#B87B00; font-weight:600; }
   .card .foot { font-size:11px; color: var(--muted); }
   .card .country-lines { display:flex; flex-direction:column; gap:3px; font-size:12px; }
-  .card .listed-countries { color: var(--muted); }
+  .card .listed-countries { color: var(--muted); font-size:11px; line-height:1.35; }
+  .card .listed-countries .lbl { font-size:11px; }
   .card .current-country { color: var(--brand-strong); font-weight:600; }
   .card .current-country .lbl { color: var(--brand-strong); }
   .card .rank-line { font-size:12px; color: var(--ink-soft); display:flex; gap:6px; align-items:center; }
@@ -522,6 +527,19 @@ function getSpuCountries(spuCode, fallbackCountry) {
   const countries = set && set.size ? [...set] : [fallbackCountry].filter(Boolean);
   return countries.sort();
 }
+// 上架国家展示：主力国明确列出，欧洲新开国合并为"+N 个欧洲新开国"
+const MAIN_COUNTRIES_ORDER = ["US","GB","DE","FR","IT","ES","MX"];
+const EU_EXTRA_COUNTRIES = new Set(["NL","PL","GR","AT","PT","CZ","HU","BE"]);
+function formatListedCountries(countries) {
+  const set = new Set(countries);
+  const mains = MAIN_COUNTRIES_ORDER.filter(c => set.has(c));
+  const euExtra = [...set].filter(c => EU_EXTRA_COUNTRIES.has(c));
+  const others = [...set].filter(c => !MAIN_COUNTRIES_ORDER.includes(c) && !EU_EXTRA_COUNTRIES.has(c));
+  const parts = [...mains];
+  if (euExtra.length) parts.push(`+${euExtra.length} 个欧洲新开国`);
+  if (others.length) parts.push(...others);
+  return { text: parts.join(" · "), tooltip: [...set].sort().join(", ") };
+}
 
 const FILTER_OPTIONS = {
   listing: ["近 7 天", "近 30 天", "近 90 天", "90 天以上", "未知"],
@@ -623,13 +641,13 @@ function cardHTML(r, idx) {
   const on = PICKED.has(r.product_id) ? "on" : "";
   const spuGroup = SPU_MAP.get(r.spu_code) || [];
   const spuCountries = getSpuCountries(r.spu_code, region);
-  const spuCountriesText = spuCountries.join(" · ");
+  const listedFmt = formatListedCountries(spuCountries);
   const nCountries = spuCountries.length;
   const multiCountryBadge = nCountries > 1
     ? `<span class="multi-country">🌐 ${nCountries} 国</span>` : "";
 
   return `
-  <div class="card" data-pid="${esc(r.product_id)}">
+  <div class="card ${on ? 'picked' : ''}" data-pid="${esc(r.product_id)}">
     <div class="cover">
       ${r.image_url
         ? `<img loading="lazy" src="${esc(r.image_url)}" alt="商品 ${esc(r.product_id)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'暂无图片'}));" />`
@@ -646,7 +664,7 @@ function cardHTML(r, idx) {
       <div class="shop"><span class="lbl">店铺：</span>${esc(r.shop_name) || '<span style="color:#bbb">店铺待关联</span>'}</div>
       <div class="cat"><span class="lbl">类目：</span>${esc(r.second_category_name)} / ${esc(r.third_category_name)}</div>
       <div class="country-lines">
-        <div class="listed-countries"><span class="lbl">上架国家：</span>${esc(spuCountriesText) || "-"}</div>
+        <div class="listed-countries" title="全部：${esc(listedFmt.tooltip)}"><span class="lbl">上架国家：</span>${esc(listedFmt.text) || "-"}</div>
         <div class="current-country"><span class="lbl">当前PID国家：</span>${region}</div>
       </div>
       <div class="price-row">
@@ -782,6 +800,33 @@ function renderPool() {
   container.innerHTML = rows.map((r,i) => cardHTML(r,i)).join("");
 }
 
+function syncPickedCount() {
+  document.getElementById("picked-count").textContent = PICKED.size;
+}
+
+function updatePickUI(pickEl, isPicked) {
+  pickEl.classList.toggle("on", isPicked);
+  pickEl.textContent = isPicked ? "已选" : "Select";
+  const card = pickEl.closest(".card");
+  if (card) card.classList.toggle("picked", isPicked);
+}
+
+function togglePicked(pid, pickEl) {
+  const isPicked = !PICKED.has(pid);
+  if (isPicked) PICKED.add(pid); else PICKED.delete(pid);
+  syncPickedCount();
+
+  if (TAB === "picked" && !isPicked) {
+    const card = pickEl.closest(".card");
+    if (card) card.remove();
+    if (!PICKED.size) {
+      document.getElementById("content").innerHTML = `<div class="pool-empty">圈品池为空，去商品池挑选吧～</div>`;
+    }
+    return;
+  }
+  updatePickUI(pickEl, isPicked);
+}
+
 function bindEvents() {
   document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
@@ -800,9 +845,7 @@ function bindEvents() {
     if (pickEl) {
       e.stopPropagation();
       const pid = pickEl.getAttribute("data-pick");
-      if (PICKED.has(pid)) PICKED.delete(pid); else PICKED.add(pid);
-      document.getElementById("picked-count").textContent = PICKED.size;
-      renderPool();
+      togglePicked(pid, pickEl);
       return;
     }
     if (e.target.closest("a")) return; // PID 链接不触发 Modal
