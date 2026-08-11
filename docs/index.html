@@ -367,9 +367,10 @@
 <div class="filters-wrap">
   <div class="filters">
     <div class="filter-field search-field"><input class="search" id="q" placeholder="🔍 搜索 商品ID / 商品名 / 类目 / 店铺" /><label>关键词搜索</label></div>
-    <div class="filter-field"><select id="f-country"><option value="">全部国家</option></select><label>国家（SPU集合）</label></div>
+    <div class="filter-field"><select id="f-main-country"><option value="">全部主推国家</option></select><label>主推国家</label></div>
+    <div class="filter-field"><select id="f-listed-country"><option value="">全部上架国家</option></select><label>上架国家</label></div>
     <div class="filter-hint">
-      说明：这里选国家表示 <b>该 SPU 在该国有上架 PID</b>；列表中展示的是该 SPU 下的商品明细，不代表该国“主推”或“只投放该国”。
+      <b>主推国家</b>：按当前 PID 所属国家筛选；<b>上架国家</b>：按 SPU 维度，只要该 SPU 在该国有上架 PID 即命中。
       <span style="margin-left:10px">导出规则：<b>商品池</b>点「导出 Excel」= 导出当前筛选的全量；<b>圈品池</b>点「导出 Excel」= 仅导出已圈选商品。</span>
     </div>
     <div class="filter-field"><select id="f-cat2"><option value="">全部二级类目</option></select><label>二级类目</label></div>
@@ -694,7 +695,8 @@ function yesNoBucket(v) { return String(v).trim() === "1" ? "是" : "否"; }
 // ---------- 筛选 ----------
 function filterRows() {
   const q = document.getElementById("q").value.trim().toLowerCase();
-  const c = document.getElementById("f-country").value;
+  const mc = document.getElementById("f-main-country").value;
+  const lc = document.getElementById("f-listed-country").value;
   const c2 = document.getElementById("f-cat2").value;
   const c3 = document.getElementById("f-cat3").value;
   const v = document.getElementById("f-video").value;
@@ -707,7 +709,8 @@ function filterRows() {
   const sps = document.getElementById("f-sps").value;
   const jit = document.getElementById("f-jit").value;
   return ALL.filter(r => {
-    if (c && !(SPU_COUNTRIES.get(r.spu_code) || new Set([r.country])).has(c)) return false;
+    if (mc && r.country !== mc) return false;
+    if (lc && !(SPU_COUNTRIES.get(r.spu_code) || new Set([r.country])).has(lc)) return false;
     if (c2 && r.second_category_name !== c2) return false;
     if (c3 && r.third_category_name !== c3) return false;
     if (listing && listingBucket(r) !== listing) return false;
@@ -939,7 +942,7 @@ function bindEvents() {
     TAB = t.dataset.tab;
     renderPool();
   }));
-  ["q","f-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
+  ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
     document.getElementById(id).addEventListener("input", renderPool);
     document.getElementById(id).addEventListener("change", renderPool);
   });
@@ -976,7 +979,7 @@ function bindEvents() {
   });
   document.getElementById("btn-refresh").addEventListener("click", () => location.reload());
   document.getElementById("btn-reset").addEventListener("click", () => {
-    ["q","f-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
+    ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
       document.getElementById(id).value = "";
     });
     renderPool();
@@ -1194,7 +1197,8 @@ Promise.all([
   SPU_COUNTRIES = buildSpuCountries(fullMapRows);
   COUNTRIES_IN_DATA = uniqSorted(fullMapRows.map(r => r.country));
 
-  fillSelect("f-country", COUNTRIES_IN_DATA);
+  fillSelect("f-main-country", uniqSorted(ALL.map(r => r.country)).sort().reverse());
+  fillSelect("f-listed-country", uniqSorted(COUNTRIES_IN_DATA).sort().reverse());
   fillSelect("f-cat2", uniqSorted(ALL.map(r => r.second_category_name)));
   fillSelect("f-cat3", uniqSorted(ALL.map(r => r.third_category_name)));
   fillSelect("f-video", ["<30%", "30-50%", "50-70%", "70%+", "未知"]);
