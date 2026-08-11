@@ -107,13 +107,15 @@
   .filter-field label { font-size:11px; color:#666; line-height:1; padding-left:2px; }
   .filter-hint { flex: 1 1 100%; font-size:12px; color:#777; margin-top:-4px; }
   .filters input, .filters select {
-    width:100%; height:38px; border:1px solid var(--line); border-radius:10px; padding: 0 12px;
+    width:100%; height:40px; border:1px solid var(--line); border-radius:11px; padding: 0 12px;
     font-size:13px; background:#fff; color:var(--ink); outline:none;
-    transition: border-color .15s, box-shadow .15s;
+    transition: border-color .15s, box-shadow .15s, transform .12s;
   }
+  .filters input:hover, .filters select:hover { border-color: rgba(109,91,208,.38); }
   .filters input:focus, .filters select:focus {
     border-color: var(--grad-a);
     box-shadow: 0 0 0 3px rgba(109,91,208,.15);
+    transform: translateY(-1px);
   }
   .filters select { padding-right: 28px; cursor:pointer; }
   .filters .refresh, .filters .reset {
@@ -166,16 +168,18 @@
   .card {
     background:#fff; border:1px solid var(--line-soft); border-radius:12px; overflow:hidden;
     display:flex; flex-direction:column; cursor: pointer;
-    transition: transform .15s ease, box-shadow .18s ease, border-color .15s;
+    transition: transform .18s ease, box-shadow .2s ease, border-color .18s, background .18s;
   }
   .card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: rgba(109,91,208,.35);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(44,39,90,.14);
+    border-color: rgba(109,91,208,.42);
   }
+  .card:active { transform: translateY(-1px) scale(.995); }
   .card.picked {
-    border-color: rgba(109,91,208,.72);
-    box-shadow: 0 0 0 2px rgba(109,91,208,.12), var(--shadow-sm);
+    border-color: rgba(109,91,208,.78);
+    background: linear-gradient(180deg, #fff, #FCFAFF);
+    box-shadow: 0 0 0 2px rgba(109,91,208,.16), var(--shadow-sm);
   }
   .card .cover {
     position:relative;
@@ -201,14 +205,20 @@
   }
   .card .cover .badges { position:absolute; left:8px; top:8px; display:flex; gap:6px; flex-wrap:wrap; }
   .card .cover .select {
-    position:absolute; right:8px; top:8px;
-    background: rgba(27,27,46,.7); color:#fff; font-size:11px; font-weight:600;
-    padding: 4px 9px; border-radius: 14px; cursor:pointer;
-    backdrop-filter: blur(6px);
+    position:absolute; right:10px; top:10px;
+    min-width:78px; height:34px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background: rgba(27,27,46,.78); color:#fff; font-size:13px; font-weight:700;
+    padding: 0 12px; border-radius: 18px; cursor:pointer;
+    box-shadow: 0 6px 16px rgba(20,18,45,.18);
+    backdrop-filter: blur(8px);
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     touch-action: manipulation;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
+  .card .cover .select:hover { transform: scale(1.04); box-shadow: 0 8px 20px rgba(20,18,45,.24); }
+  .card .cover .select:active { transform: scale(.98); }
   .card .cover .select.on { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
   .card .body { padding: 10px 12px 12px; display:flex; flex-direction:column; gap:6px; font-size:12px; color: var(--ink-soft); }
   .card .body .lbl { color: var(--muted); margin-right:4px; }
@@ -259,6 +269,10 @@
 
   .empty { padding: 60px 0; text-align:center; color:var(--muted); grid-column: 1 / -1; }
   .pool-empty { padding:80px 32px; text-align:center; color:var(--muted); }
+  .load-more-wrap { grid-column: 1 / -1; display:flex; justify-content:center; padding: 10px 0 4px; }
+  .load-more { border:none; border-radius:999px; padding:11px 22px; background:linear-gradient(135deg,#7c3aed,#ec4899); color:#fff; font-weight:800; cursor:pointer; box-shadow:0 10px 22px rgba(124,58,237,.18); transition: transform .14s ease, box-shadow .14s ease; }
+  .load-more:hover { transform: translateY(-1px); box-shadow:0 14px 28px rgba(124,58,237,.24); }
+  .load-more:active { transform: translateY(0) scale(.98); }
 
   /* ===== Modal ===== */
   .modal-backdrop {
@@ -476,6 +490,8 @@ async function fetchFirstText(urls, opts) {
 let ALL = [];              // 全量 P0 池商品（主列表保持不变）
 let PICKED = new Set();    // 圈品池 pid
 let TAB = "pool";
+const RENDER_STEP = 180;    // 首屏只渲染部分卡片，避免一次性渲染 3000+ 商品导致交互卡顿
+let DISPLAY_LIMIT = RENDER_STEP;
 let SPU_MAP = new Map();   // spu_code -> [rows...]   多国 PID 聚合（优先使用全量宽表补全映射）
 let SPU_COUNTRIES = new Map(); // spu_code -> Set(country)   SPU 覆盖国家集合
 let COUNTRIES_IN_DATA = []; // 补全映射中出现过的国家（用于筛选与导出列头）
@@ -758,7 +774,7 @@ function cardHTML(r, idx) {
       <div class="badges">
         <span class="tag p0">丰富度P0</span>
       </div>
-      <span class="select ${on}" data-pick="${esc(r.product_id)}">${on ? "已选" : "Select"}</span>
+      <span class="select ${on}" data-pick="${esc(r.product_id)}">Select</span>
     </div>
     <div class="body">
       <div class="pid-line"><span class="lbl">PID：</span><a target="_blank" href="${pidLink}" onclick="event.stopPropagation()">${esc(r.product_id)}</a> ${multiCountryBadge}</div>
@@ -898,14 +914,22 @@ function renderPool() {
       container.innerHTML = `<div class="pool-empty">圈品池为空，去商品池挑选吧～</div>`;
       return;
     }
-    container.innerHTML = picked.map((r,i) => cardHTML(r,i)).join("");
+    const visiblePicked = picked.slice(0, DISPLAY_LIMIT);
+    const moreHTML = picked.length > visiblePicked.length
+      ? `<div class="load-more-wrap"><button class="load-more" id="btn-load-more">加载更多圈品（已显示 ${visiblePicked.length.toLocaleString()} / ${picked.length.toLocaleString()}）</button></div>`
+      : "";
+    container.innerHTML = visiblePicked.map((r,i) => cardHTML(r,i)).join("") + moreHTML;
     return;
   }
   if (!rows.length) {
     container.innerHTML = `<div class="empty">没有匹配的商品</div>`;
     return;
   }
-  container.innerHTML = rows.map((r,i) => cardHTML(r,i)).join("");
+  const visibleRows = rows.slice(0, DISPLAY_LIMIT);
+  const moreHTML = rows.length > visibleRows.length
+    ? `<div class="load-more-wrap"><button class="load-more" id="btn-load-more">加载更多商品（已显示 ${visibleRows.length.toLocaleString()} / ${rows.length.toLocaleString()}）</button></div>`
+    : "";
+  container.innerHTML = visibleRows.map((r,i) => cardHTML(r,i)).join("") + moreHTML;
 }
 
 function syncPickedCount() {
@@ -914,7 +938,7 @@ function syncPickedCount() {
 
 function updatePickUI(pickEl, isPicked) {
   pickEl.classList.toggle("on", isPicked);
-  pickEl.textContent = isPicked ? "已选" : "Select";
+  pickEl.textContent = "Select";
   const card = pickEl.closest(".card");
   if (card) card.classList.toggle("picked", isPicked);
 }
@@ -940,11 +964,13 @@ function bindEvents() {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
     TAB = t.dataset.tab;
+    DISPLAY_LIMIT = RENDER_STEP;
     renderPool();
   }));
   ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
-    document.getElementById(id).addEventListener("input", renderPool);
-    document.getElementById(id).addEventListener("change", renderPool);
+    const rerender = () => { DISPLAY_LIMIT = RENDER_STEP; renderPool(); };
+    document.getElementById(id).addEventListener("input", rerender);
+    document.getElementById(id).addEventListener("change", rerender);
   });
 
   const contentEl = document.getElementById("content");
@@ -961,6 +987,11 @@ function bindEvents() {
 
   // 卡片 click：区分 PID 链接 / 打开 Modal（pick 已在 pointerdown 处理）
   contentEl.addEventListener("click", e => {
+    if (e.target.closest("#btn-load-more")) {
+      DISPLAY_LIMIT += RENDER_STEP;
+      renderPool();
+      return;
+    }
     if (e.target.closest("[data-pick]")) { e.stopPropagation(); return; }
     if (e.target.closest("a")) return; // PID 链接不触发 Modal
     const card = e.target.closest(".card");
@@ -982,6 +1013,7 @@ function bindEvents() {
     ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
       document.getElementById(id).value = "";
     });
+    DISPLAY_LIMIT = RENDER_STEP;
     renderPool();
   });
   document.getElementById("btn-export").addEventListener("click", exportCSV);
