@@ -313,6 +313,41 @@
   .empty { padding: 60px 0; text-align:center; color:var(--muted); grid-column: 1 / -1; }
   .pool-empty { padding:80px 32px; text-align:center; color:var(--muted); }
   .load-more-wrap { grid-column: 1 / -1; display:flex; justify-content:center; padding: 10px 0 4px; }
+
+  /* ---------- 首屏 Loading / Skeleton ---------- */
+  .loading-bar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line-soft);
+    padding: 10px 14px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .loading-bar .msg { color: var(--ink-soft); font-size: 13px; }
+  .loading-bar .prog { color: var(--muted); font-size: 12px; }
+  .skeleton-grid {
+    grid-column: 1 / -1;
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  @media (max-width: 1200px) { .skeleton-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 920px) { .skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .skeleton-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); } }
+  .skeleton-card {
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow-sm);
+    overflow:hidden;
+  }
+  .sk-cover { height: 190px; background: linear-gradient(90deg, #f1effa 25%, #ffffff 37%, #f1effa 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
+  .sk-body { padding: 12px; }
+  .sk-line { height: 12px; border-radius: 8px; background: linear-gradient(90deg, #f1effa 25%, #ffffff 37%, #f1effa 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; margin: 10px 0; }
+  .sk-line.sm { width: 55%; }
+  .sk-line.md { width: 78%; }
+  .sk-line.lg { width: 92%; }
+  @keyframes sk { 0%{background-position:100% 50%} 100%{background-position:0 50%} }
   .load-more { border:none; border-radius:999px; padding:11px 22px; background:linear-gradient(135deg,#7c3aed,#ec4899); color:#fff; font-weight:800; cursor:pointer; box-shadow:0 10px 22px rgba(124,58,237,.18); transition: transform .14s ease, box-shadow .14s ease; }
   .load-more:hover { transform: translateY(-1px); box-shadow:0 14px 28px rgba(124,58,237,.24); }
   .load-more:active { transform: translateY(0) scale(.98); }
@@ -477,7 +512,7 @@
 </div>
 
 <!-- Excel 导出（含图片）依赖：ExcelJS（纯前端，无后端） -->
-<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <script>
 // ===== 数据加载：优先同源，其次 raw.githubusercontent.com / jsdelivr 兜底 =====
@@ -995,7 +1030,7 @@ function openModal(pid) {
     <div>
       <div class="modal-cover">
         ${r.image_url
-          ? `<img src="${esc(r.image_url)}" alt="商品图" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'暂无图片'}));" />`
+          ? `<img loading="lazy" decoding="async" src="${esc(r.image_url)}" alt="商品图" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg',textContent:'暂无图片'}));" />`
           : `<div class="noimg">暂无图片</div>`}
       </div>
     </div>
@@ -1385,25 +1420,125 @@ async function exportExcelWithImages() {
   URL.revokeObjectURL(url);
 }
 
-// ---------- Load ----------
-Promise.all([
-  fetchFirstText(CSV_URLS, { cache: "no-store" }),
-  fetchFirstText(SPU_PID_MAP_URLS, { cache: "no-store" }).catch(() => ({ text: "", url: "" })),
-]).then(([csvRes, mapRes]) => {
-  const txt = csvRes.text;
-  const mapTxt = mapRes.text;
+// ---------- Load（异步 Fetch + 分批解析，优化首屏阻塞） ----------
+function skeletonHTML(n = INITIAL_RENDER) {
+  const cards = Array.from({ length: n }).map(() => {
+    return `
+      <div class="skeleton-card">
+        <div class="sk-cover"></div>
+        <div class="sk-body">
+          <div class="sk-line lg"></div>
+          <div class="sk-line md"></div>
+          <div class="sk-line sm"></div>
+          <div class="sk-line md"></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+  return `<div class="loading-bar" id="loading-bar"><div class="msg" id="loading-msg">正在加载数据…</div><div class="prog" id="loading-prog">0%</div></div><div class="skeleton-grid">${cards}</div>`;
+}
+function setLoading(msg = "正在加载数据…", prog = "") {
+  const m = document.getElementById("loading-msg");
+  const p = document.getElementById("loading-prog");
+  if (m) m.textContent = msg;
+  if (p) p.textContent = prog;
+}
+function hideLoading() {
+  const bar = document.getElementById("loading-bar");
+  if (bar) bar.remove();
+}
+async function fetchFirstResponse(urls, opts = {}) {
+  const tried = [];
+  for (const url of urls) {
+    tried.push(url);
+    try {
+      const r = await fetch(url, opts);
+      if (r && r.ok) return { resp: r, url };
+    } catch (e) {
+      // ignore
+    }
+  }
+  const err = new Error("Failed to fetch");
+  err.tried = tried;
+  throw err;
+}
+function waitNextFrame() {
+  return new Promise(r => requestAnimationFrame(() => r()));
+}
+async function streamParseCSV(resp, onBatch) {
+  if (!resp.body || !resp.body.getReader) {
+    // 兜底：不支持 stream 的浏览器，仍然异步读完再解析（但避免同步阻塞）
+    const text = await resp.text();
+    const rows = parseCSV(text);
+    onBatch(rows, 0, rows.length);
+    return { total: rows.length };
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
 
-  ALL = parseCSV(txt);
-  PID_DETAIL_MAP = buildPidDetailMap(ALL);
-  const fullMapRows = normalizeSpuPidRows(parseCSV(mapTxt), ALL);
-  SPU_MAP = buildSpuMap(fullMapRows);
-  SPU_COUNTRIES = buildSpuCountries(fullMapRows);
-  COUNTRIES_IN_DATA = uniqSorted(fullMapRows.map(r => r.country));
+  let header = null;
+  let cur = "", row = [], inQ = false;
+  let batch = [];
+  let parsed = 0;
 
-  fillSelect("f-main-country", uniqSorted(ALL.map(r => r.country)).sort().reverse());
-  fillSelect("f-listed-country", uniqSorted(COUNTRIES_IN_DATA).sort().reverse());
-  fillSelect("f-cat2", uniqSorted(ALL.map(r => r.second_category_name)));
-  fillSelect("f-cat3", uniqSorted(ALL.map(r => r.third_category_name)));
+  const pushRow = (cells) => {
+    if (!header) {
+      header = cells;
+      return;
+    }
+    if (!cells.length || !cells.some(v => v !== "")) return;
+    const o = {};
+    header.forEach((h, i) => { o[h] = cells[i] ?? ""; });
+    batch.push(o);
+    parsed++;
+  };
+
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    for (let i = 0; i < buf.length; i++) {
+      const ch = buf[i];
+      if (inQ) {
+        if (ch === '"' && buf[i+1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') { inQ = false; }
+        else cur += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === ',') { row.push(cur); cur = ""; }
+        else if (ch === '\n') { row.push(cur); pushRow(row); row = []; cur = ""; }
+        else if (ch === '\r') { /* skip */ }
+        else cur += ch;
+      }
+
+      if (batch.length >= 600) {
+        onBatch(batch, parsed);
+        batch = [];
+        await waitNextFrame();
+      }
+    }
+    buf = "";
+  }
+  // flush tail
+  if (cur.length || row.length) {
+    row.push(cur);
+    pushRow(row);
+  }
+  if (batch.length) onBatch(batch, parsed);
+  return { total: parsed };
+}
+
+(async function init() {
+  const content = document.getElementById("content");
+  content.className = "grid";
+  content.innerHTML = skeletonHTML(INITIAL_RENDER);
+
+  // 先绑定事件与基础筛选器，让首屏 UI 立刻可交互
+  bindEvents();
+
+  // 先填充不依赖全量数据的筛选项
   fillSelect("f-video", ["<30%", "30-50%", "50-70%", "70%+", "未知"]);
   const SALES_BUCKET_OPTIONS = ["0件", "1-10件", "10-30件", "30-50件", "50-70件", "70-100件", "100-300件", "300-500件", "500-1000件", "1000件+"];
   fillSelect("f-sales7d", SALES_BUCKET_OPTIONS);
@@ -1425,20 +1560,83 @@ Promise.all([
   fillSelect("f-price", FILTER_OPTIONS.price);
   fillSelect("f-stock", FILTER_OPTIONS.stock);
   fillSelect("f-growth", ["高增速", "中增速", "增长", "无分级"]);
-  // 买手筛选：即使当前数据里暂时没有 Summer，也固定出现在筛选器里，方便后续刷新直接可用
+  fillSelect("f-jit", FILTER_OPTIONS.yesNo);
+
+  // 依赖全量数据的筛选器先禁用，避免用户误以为已加载完成
+  ["f-main-country","f-listed-country","f-cat2","f-cat3","f-buyer","f-sps"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = true;
+  });
+
+  const mapPromise = fetchFirstText(SPU_PID_MAP_URLS, { cache: "no-store" }).catch(() => ({ text: "", url: "" }));
+
+  // 分批解析 data.csv
+  const mainCountries = new Set();
+  const cat2Set = new Set();
+  const cat3Set = new Set();
+  const buyerSet = new Set();
+
+  let initialRendered = false;
+  const csvRes = await fetchFirstResponse(CSV_URLS, { cache: "no-store" });
+  document.getElementById("datacsv-stamp").textContent = `data.csv(加载中…) · ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+
+  setLoading("正在加载 data.csv…", "0%");
+  ALL = [];
+
+  await streamParseCSV(csvRes.resp, (rows, parsed) => {
+    for (const r of rows) {
+      ALL.push(r);
+      if (r.country) mainCountries.add(String(r.country).toUpperCase());
+      if (r.second_category_name) cat2Set.add(String(r.second_category_name));
+      if (r.third_category_name) cat3Set.add(String(r.third_category_name));
+      const b = String(r["买手"] || "").trim();
+      if (b) buyerSet.add(b);
+    }
+
+    // 首屏：只要够 INITIAL_RENDER，就先渲染起来（不等全量解析完成）
+    if (!initialRendered && ALL.length >= INITIAL_RENDER) {
+      initialRendered = true;
+      renderPool();
+      hideLoading();
+    }
+
+    // 进度条（近似，用已解析行数做体感反馈）
+    const prog = ALL.length >= 3281 ? "100%" : `${Math.min(99, Math.round((ALL.length / 3281) * 100))}%`;
+    setLoading("正在解析 data.csv…", prog);
+  });
+
+  // 全量数据到齐后，再做一次“重建索引 + 补全映射 + 填充筛选器”
+  PID_DETAIL_MAP = buildPidDetailMap(ALL);
+
+  const mapRes = await mapPromise;
+  const fullMapRows = normalizeSpuPidRows(parseCSV(mapRes.text), ALL);
+  SPU_MAP = buildSpuMap(fullMapRows);
+  SPU_COUNTRIES = buildSpuCountries(fullMapRows);
+  COUNTRIES_IN_DATA = uniqSorted(fullMapRows.map(r => r.country));
+
+  // 这部分放到下一帧，减少一次性主线程阻塞
+  await waitNextFrame();
+  fillSelect("f-main-country", uniqSorted([...mainCountries]).sort().reverse());
+  fillSelect("f-listed-country", uniqSorted(COUNTRIES_IN_DATA).sort().reverse());
+  fillSelect("f-cat2", uniqSorted([...cat2Set]));
+  fillSelect("f-cat3", uniqSorted([...cat3Set]));
+
   const BUYER_WHITELIST = ["马冬冬","毛月月","晏然","胡婧","安卓一","贾凤琴","Summer 夏天","王天钰"]; 
-  const buyersInData = uniqSorted(ALL.map(r => String(r["买手"] || "").trim())).filter(x => x);
-  const buyerOptions = uniqSorted([...BUYER_WHITELIST, ...buyersInData]);
+  const buyerOptions = uniqSorted([...BUYER_WHITELIST, ...buyerSet]);
   fillSelect("f-buyer", buyerOptions);
   fillSelect("f-sps", buildRatingOptions(spsBucket));
-  fillSelect("f-jit", FILTER_OPTIONS.yesNo);
+
+  ["f-main-country","f-listed-country","f-cat2","f-cat3","f-buyer","f-sps"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = false;
+  });
 
   const stamp = `data.csv(${csvRes.url ? "OK" : ""}) + spu_country_pid_map.csv(${mapRes.url ? "OK" : "-"}) · 更新于 ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
   document.getElementById("datacsv-stamp").textContent = stamp;
 
-  bindEvents();
+  // 全量数据加载完成后再渲染一次（用于校准筛选统计）
   renderPool();
-}).catch(e => {
+})().catch(e => {
   const tried = (e && e.tried) ? `<div style="margin-top:8px;font-size:12px;color:#999">已尝试：<br/>${e.tried.map(x => esc(x)).join("<br/>")}</div>` : "";
   document.getElementById("content").innerHTML = `<div class="empty">加载数据失败：${esc(e && e.message ? e.message : e)}${tried}</div>`;
 });
