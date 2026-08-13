@@ -118,6 +118,49 @@
     transform: translateY(-1px);
   }
   .filters select { padding-right: 28px; cursor:pointer; }
+  .filters select.native-hidden {
+    position:absolute; opacity:0; pointer-events:none; width:0; height:0; padding:0; border:0;
+  }
+  .multi-select {
+    position:relative;
+  }
+  .multi-select-trigger {
+    width:100%; min-height:40px; border:1px solid var(--line); border-radius:11px; padding: 8px 34px 8px 12px;
+    font-size:13px; background:#fff; color:var(--ink); cursor:pointer;
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap; line-height:1.3;
+    transition: border-color .15s, box-shadow .15s, transform .12s;
+  }
+  .multi-select:hover .multi-select-trigger { border-color: rgba(109,91,208,.38); }
+  .multi-select.open .multi-select-trigger {
+    border-color: var(--grad-a);
+    box-shadow: 0 0 0 3px rgba(109,91,208,.15);
+    transform: translateY(-1px);
+  }
+  .multi-select-trigger::after {
+    content:"▾"; position:absolute; right:12px; top:50%; transform:translateY(-50%);
+    color:var(--muted); font-size:12px;
+  }
+  .multi-select-summary { color: var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .multi-select-tag {
+    display:inline-flex; align-items:center; max-width:100%;
+    padding:2px 8px; border-radius:999px; background:var(--brand-soft); color:var(--brand-strong);
+    font-size:11px; font-weight:600;
+  }
+  .multi-select-panel {
+    position:absolute; left:0; right:0; top: calc(100% + 8px); z-index:30;
+    background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow: var(--shadow-md);
+    padding:8px; display:none; max-height:260px; overflow:auto;
+  }
+  .multi-select.open .multi-select-panel { display:block; }
+  .multi-select-option {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    width:100%; border:0; background:#fff; border-radius:10px; padding:9px 10px; cursor:pointer;
+    color:var(--ink); font-size:13px; text-align:left;
+  }
+  .multi-select-option:hover { background:#F7F5FD; }
+  .multi-select-option.active { background:var(--brand-soft); color:var(--brand-strong); font-weight:600; }
+  .multi-select-option .check { color:transparent; font-size:12px; }
+  .multi-select-option.active .check { color:var(--grad-a); }
   .filters .refresh, .filters .reset {
     color:#fff; border:0; padding: 0 18px; height:38px; border-radius:10px;
     font-weight:600; font-size:13px; cursor:pointer;
@@ -381,23 +424,27 @@
 <div class="filters-wrap">
   <div class="filters">
     <div class="filter-field search-field"><input class="search" id="q" placeholder="🔍 搜索 商品ID / 商品名 / 类目 / 店铺" /><label>关键词搜索</label></div>
-    <div class="filter-field"><select id="f-main-country"><option value="">全部主推国家</option></select><label>主推国家</label></div>
-    <div class="filter-field"><select id="f-listed-country"><option value="">全部上架国家</option></select><label>上架国家</label></div>
+    <div class="filter-field"><select id="f-main-country" multiple data-placeholder="全部主推国家"><option value="">全部主推国家</option></select><label>主推国家</label></div>
+    <div class="filter-field"><select id="f-listed-country" multiple data-placeholder="全部上架国家"><option value="">全部上架国家</option></select><label>上架国家</label></div>
     <div class="filter-hint">
       <b>主推国家</b>：按当前 PID 所属国家筛选；<b>上架国家</b>：按 SPU 维度，只要该 SPU 在该国有上架 PID 即命中。
       <span style="margin-left:10px">导出规则：<b>商品池</b>点「导出 Excel」= 导出当前筛选的全量；<b>圈品池</b>点「导出 Excel」= 仅导出已圈选商品。</span>
     </div>
-    <div class="filter-field"><select id="f-cat2"><option value="">全部二级类目</option></select><label>二级类目</label></div>
-    <div class="filter-field"><select id="f-cat3"><option value="">全部三级类目</option></select><label>三级类目</label></div>
-    <div class="filter-field"><select id="f-listing"><option value="">全部上架时间</option></select><label>上架时间</label></div>
-    <div class="filter-field"><select id="f-price"><option value="">全部到手价</option></select><label>到手价</label></div>
-    <div class="filter-field"><select id="f-stock"><option value="">全部库存</option></select><label>库存</label></div>
-    <div class="filter-field"><select id="f-growth"><option value="">全部增速</option></select><label>增速</label></div>
-    <div class="filter-field"><select id="f-buyer"><option value="">全部买手</option></select><label>买手</label></div>
-    <div class="filter-field"><select id="f-sps"><option value="">全部店铺SPS分</option></select><label>店铺SPS分</label></div>
-    <div class="filter-field"><select id="f-jit"><option value="">全部JIT备货</option></select><label>JIT备货</label></div>
-    <div class="filter-field"><select id="f-video"><option value="">全部短视频占比</option></select><label>短视频占比</label></div>
-    <div class="filter-field"><select id="f-gpm"><option value="">全部 GPM 分层</option></select><label>GPM分层</label></div>
+    <div class="filter-field"><select id="f-cat2" multiple data-placeholder="全部二级类目"><option value="">全部二级类目</option></select><label>二级类目</label></div>
+    <div class="filter-field"><select id="f-cat3" multiple data-placeholder="全部三级类目"><option value="">全部三级类目</option></select><label>三级类目</label></div>
+    <div class="filter-field"><select id="f-listing" multiple data-placeholder="全部上架时间"><option value="">全部上架时间</option></select><label>上架时间</label></div>
+    <div class="filter-field"><select id="f-price" multiple data-placeholder="全部到手价"><option value="">全部到手价</option></select><label>到手价</label></div>
+    <div class="filter-field"><select id="f-stock" multiple data-placeholder="全部库存"><option value="">全部库存</option></select><label>库存</label></div>
+    <div class="filter-field"><select id="f-growth" multiple data-placeholder="全部增速"><option value="">全部增速</option></select><label>增速</label></div>
+    <div class="filter-field"><select id="f-buyer" multiple data-placeholder="全部买手"><option value="">全部买手</option></select><label>买手</label></div>
+    <div class="filter-field"><select id="f-sps" multiple data-placeholder="全部店铺SPS分"><option value="">全部店铺SPS分</option></select><label>店铺SPS分</label></div>
+    <div class="filter-field"><select id="f-jit" multiple data-placeholder="全部JIT备货"><option value="">全部JIT备货</option></select><label>JIT备货</label></div>
+    <div class="filter-field"><select id="f-video" multiple data-placeholder="全部短视频占比"><option value="">全部短视频占比</option></select><label>短视频占比</label></div>
+    <div class="filter-field"><select id="f-sales7d" multiple data-placeholder="全部近7天销量"><option value="">全部近7天销量</option></select><label>近7天销量</label></div>
+    <div class="filter-field"><select id="f-sales1d" multiple data-placeholder="全部近1天销量"><option value="">全部近1天销量</option></select><label>近1天销量</label></div>
+    <div class="filter-field"><select id="f-sales3d" multiple data-placeholder="全部近3天销量"><option value="">全部近3天销量</option></select><label>近3天销量</label></div>
+    <div class="filter-field"><select id="f-gpm" multiple data-placeholder="全部 GPM 分层"><option value="">全部 GPM 分层</option></select><label>GPM分层</label></div>
+    <div class="filter-field"><select id="f-sort"><option value="">默认排序</option></select><label>排序</label></div>
     <button class="reset" id="btn-reset">重置全部筛选</button>
     <button class="refresh" id="btn-refresh">刷新</button>
     <span class="datacsv" id="datacsv-stamp">data.csv</span>
@@ -490,8 +537,9 @@ async function fetchFirstText(urls, opts) {
 let ALL = [];              // 全量 P0 池商品（主列表保持不变）
 let PICKED = new Set();    // 圈品池 pid
 let TAB = "pool";
-const RENDER_STEP = 180;    // 首屏只渲染部分卡片，避免一次性渲染 3000+ 商品导致交互卡顿
-let DISPLAY_LIMIT = RENDER_STEP;
+const INITIAL_RENDER = 70;     // 首屏加载卡片数
+const LOAD_MORE_STEP = 200;    // 每次点击“加载更多”追加数
+let DISPLAY_LIMIT = INITIAL_RENDER;
 let SPU_MAP = new Map();   // spu_code -> [rows...]   多国 PID 聚合（优先使用全量宽表补全映射）
 let SPU_COUNTRIES = new Map(); // spu_code -> Set(country)   SPU 覆盖国家集合
 let COUNTRIES_IN_DATA = []; // 补全映射中出现过的国家（用于筛选与导出列头）
@@ -541,21 +589,87 @@ function uniqSorted(arr) {
 }
 function fillSelect(id, values) {
   const sel = document.getElementById(id);
-  const cur = sel.value;
-  const head = sel.querySelector("option");
+  const cur = selectedValues(id);
+  const head = sel.querySelector("option") || document.createElement("option");
+  const placeholder = head.textContent || sel.dataset.placeholder || "全部";
+  head.value = "";
+  head.textContent = placeholder;
   sel.innerHTML = "";
   sel.appendChild(head);
   values.forEach(v => {
     const o = document.createElement("option");
     o.value = v; o.textContent = v;
+    o.selected = cur.includes(v);
     sel.appendChild(o);
   });
-  sel.value = cur;
+  if (!sel.multiple) {
+    sel.value = cur[0] || "";
+  }
+  refreshMultiSelect(id);
 }
 function esc(v) {
   return String(v == null ? "" : v)
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;");
+}
+function closeAllMultiSelects(exceptId = "") {
+  document.querySelectorAll(".multi-select.open").forEach(node => {
+    if (node.dataset.selectId !== exceptId) node.classList.remove("open");
+  });
+}
+function renderMultiSelectSummary(selectEl, trigger) {
+  const values = [...selectEl.selectedOptions].map(o => o.value).filter(Boolean);
+  const placeholder = selectEl.dataset.placeholder || (selectEl.querySelector('option[value=""]') || {}).textContent || "全部";
+  if (!values.length) {
+    trigger.innerHTML = `<span class="multi-select-summary">${esc(placeholder)}</span>`;
+    return;
+  }
+  const tags = values.slice(0, 2).map(v => `<span class="multi-select-tag">${esc(v)}</span>`).join("");
+  const extra = values.length > 2 ? `<span class="multi-select-tag">+${values.length - 2}</span>` : "";
+  trigger.innerHTML = tags + extra;
+}
+function refreshMultiSelect(id) {
+  const selectEl = document.getElementById(id);
+  const box = selectEl && selectEl.nextElementSibling && selectEl.nextElementSibling.classList.contains("multi-select")
+    ? selectEl.nextElementSibling : null;
+  if (!selectEl || !box) return;
+  const trigger = box.querySelector(".multi-select-trigger");
+  const panel = box.querySelector(".multi-select-panel");
+  renderMultiSelectSummary(selectEl, trigger);
+  panel.innerHTML = [...selectEl.options]
+    .filter(o => o.value)
+    .map(o => `<button type="button" class="multi-select-option ${o.selected ? 'active' : ''}" data-value="${esc(o.value)}"><span>${esc(o.textContent)}</span><span class="check">✓</span></button>`)
+    .join("");
+}
+function initMultiSelect(id) {
+  const selectEl = document.getElementById(id);
+  if (!selectEl || !selectEl.multiple || (selectEl.nextElementSibling && selectEl.nextElementSibling.classList.contains("multi-select"))) return;
+  selectEl.classList.add("native-hidden");
+  const box = document.createElement("div");
+  box.className = "multi-select";
+  box.dataset.selectId = id;
+  box.innerHTML = '<button type="button" class="multi-select-trigger"></button><div class="multi-select-panel"></div>';
+  selectEl.insertAdjacentElement("afterend", box);
+  const trigger = box.querySelector(".multi-select-trigger");
+  const panel = box.querySelector(".multi-select-panel");
+  trigger.addEventListener("click", e => {
+    e.stopPropagation();
+    const willOpen = !box.classList.contains("open");
+    closeAllMultiSelects(willOpen ? id : "");
+    box.classList.toggle("open", willOpen);
+  });
+  panel.addEventListener("click", e => {
+    const btn = e.target.closest(".multi-select-option");
+    if (!btn) return;
+    e.stopPropagation();
+    const value = btn.dataset.value;
+    const opt = [...selectEl.options].find(o => o.value === value);
+    if (!opt) return;
+    opt.selected = !opt.selected;
+    refreshMultiSelect(id);
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  refreshMultiSelect(id);
 }
 
 // ---------- 按 SPU 聚合多国 PID ----------
@@ -708,36 +822,70 @@ function growthBucket(r) {
 }
 function yesNoBucket(v) { return String(v).trim() === "1" ? "是" : "否"; }
 
+function salesLabel(r, field) {
+  const v = String(r[field] || "").trim();
+  return v || "未知";
+}
+function salesSortValue(r, field) {
+  const n = numVal(r[field]);
+  return Number.isFinite(n) ? n : 0;
+}
+function sortRows(rows) {
+  const sortKey = document.getElementById("f-sort") ? (document.getElementById("f-sort").value || "sales_7d_desc") : "sales_7d_desc";
+  const sorted = rows.slice();
+  const dir = sortKey.endsWith("_asc") ? 1 : -1;
+  const field = sortKey.includes("7d") ? "_近7天销量排序值" : (sortKey.includes("1d") ? "_近1天销量排序值" : "_近3天销量排序值");
+  sorted.sort((a, b) => {
+    const diff = salesSortValue(a, field) - salesSortValue(b, field);
+    if (diff !== 0) return diff * dir;
+    return numVal(a.rank) - numVal(b.rank);
+  });
+  return sorted;
+}
+
 // ---------- 筛选 ----------
+function selectedValues(id) {
+  const el = document.getElementById(id);
+  if (!el) return [];
+  if (el.multiple) return [...el.selectedOptions].map(o => o.value).filter(Boolean);
+  return el.value ? [el.value] : [];
+}
+
 function filterRows() {
   const q = document.getElementById("q").value.trim().toLowerCase();
-  const mc = document.getElementById("f-main-country").value;
-  const lc = document.getElementById("f-listed-country").value;
-  const c2 = document.getElementById("f-cat2").value;
-  const c3 = document.getElementById("f-cat3").value;
-  const v = document.getElementById("f-video").value;
-  const g = document.getElementById("f-gpm").value;
-  const listing = document.getElementById("f-listing").value;
-  const price = document.getElementById("f-price").value;
-  const stock = document.getElementById("f-stock").value;
-  const growth = document.getElementById("f-growth").value;
-  const buyer = document.getElementById("f-buyer").value;
-  const sps = document.getElementById("f-sps").value;
-  const jit = document.getElementById("f-jit").value;
-  return ALL.filter(r => {
-    if (mc && r.country !== mc) return false;
-    if (lc && !(SPU_COUNTRIES.get(r.spu_code) || new Set([r.country])).has(lc)) return false;
-    if (c2 && r.second_category_name !== c2) return false;
-    if (c3 && r.third_category_name !== c3) return false;
-    if (listing && listingBucket(r) !== listing) return false;
-    if (price && priceBucket(r) !== price) return false;
-    if (stock && stockBucket(r) !== stock) return false;
-    if (growth && growthBucket(r) !== growth) return false;
-    if (buyer && (String(r["买手"] || "").trim() !== buyer)) return false;
-    if (sps && spsBucket(r) !== sps) return false;
-    if (jit && yesNoBucket(r.has_jit_sku) !== jit) return false;
-    if (v && r["短视频占比区间"] !== v) return false;
-    if (g && r["GPM分层"] !== g) return false;
+  const mc = selectedValues("f-main-country");
+  const lc = selectedValues("f-listed-country");
+  const c2 = selectedValues("f-cat2");
+  const c3 = selectedValues("f-cat3");
+  const v = selectedValues("f-video");
+  const sales7d = selectedValues("f-sales7d");
+  const sales1d = selectedValues("f-sales1d");
+  const sales3d = selectedValues("f-sales3d");
+  const g = selectedValues("f-gpm");
+  const listing = selectedValues("f-listing");
+  const price = selectedValues("f-price");
+  const stock = selectedValues("f-stock");
+  const growth = selectedValues("f-growth");
+  const buyer = selectedValues("f-buyer");
+  const sps = selectedValues("f-sps");
+  const jit = selectedValues("f-jit");
+  const rows = ALL.filter(r => {
+    if (mc.length && !mc.includes(r.country)) return false;
+    if (lc.length && !lc.some(country => (SPU_COUNTRIES.get(r.spu_code) || new Set([r.country])).has(country))) return false;
+    if (c2.length && !c2.includes(r.second_category_name)) return false;
+    if (c3.length && !c3.includes(r.third_category_name)) return false;
+    if (listing.length && !listing.includes(listingBucket(r))) return false;
+    if (price.length && !price.includes(priceBucket(r))) return false;
+    if (stock.length && !stock.includes(stockBucket(r))) return false;
+    if (growth.length && !growth.includes(growthBucket(r))) return false;
+    if (buyer.length && !buyer.includes(String(r["买手"] || "").trim())) return false;
+    if (sps.length && !sps.includes(spsBucket(r))) return false;
+    if (jit.length && !jit.includes(yesNoBucket(r.has_jit_sku))) return false;
+    if (v.length && !v.includes(r["短视频占比区间"])) return false;
+    if (sales7d.length && !sales7d.includes(salesLabel(r, "近7天销量分档"))) return false;
+    if (sales1d.length && !sales1d.includes(salesLabel(r, "近1天销量"))) return false;
+    if (sales3d.length && !sales3d.includes(salesLabel(r, "近3天销量"))) return false;
+    if (g.length && !g.includes(r["GPM分层"])) return false;
     if (q) {
       const hay = [r.product_id, r.spu_code, r.product_name, r.shop_name, r.third_category_name, r.second_category_name]
         .join(" ").toLowerCase();
@@ -745,6 +893,7 @@ function filterRows() {
     }
     return true;
   });
+  return sortRows(rows);
 }
 
 function gpmClass(v) {
@@ -797,6 +946,8 @@ function cardHTML(r, idx) {
       <div class="tags">
         <span class="tag vid">短视频 ${esc(r["短视频占比区间"]) || "未知"}</span>
         ${r["近7天销量分档"] ? `<span class="tag sales">7D销量 ${esc(r["近7天销量分档"])}</span>` : ""}
+        <span class="tag sales">1D销量 ${esc(salesLabel(r, "近1天销量"))}</span>
+        <span class="tag sales">3D销量 ${esc(salesLabel(r, "近3天销量"))}</span>
         ${r["增速分级"] ? `<span class="tag growth">增速 ${esc(growthBucket(r))}</span>` : ""}
         <span class="tag sps">SPS <b>${esc(r.shop_sps_score) || "-"}</b></span>
         ${r.has_jit_sku === "1" ? '<span class="tag jit">JIT</span>' : ""}
@@ -872,6 +1023,8 @@ function openModal(pid) {
         <div class="kv"><span class="k">到手价</span><span class="v price">$${esc(r.deal_price) || "-"}</span></div>
         <div class="kv"><span class="k">库存</span><span class="v">${esc(r.stock) || 0}</span></div>
         <div class="kv"><span class="k">近7天销量分档</span><span class="v">${esc(r["近7天销量分档"]) || "-"}</span></div>
+        <div class="kv"><span class="k">近1天销量</span><span class="v">${esc(salesLabel(r, "近1天销量"))}</span></div>
+        <div class="kv"><span class="k">近3天销量</span><span class="v">${esc(salesLabel(r, "近3天销量"))}</span></div>
         <div class="kv"><span class="k">增速分级</span><span class="v">${esc(r["增速分级"]) || "-"}</span></div>
         <div class="kv"><span class="k">上架日期</span><span class="v">${esc(r.first_success_audit_date) || "-"}</span></div>
         <div class="kv"><span class="k">榜单排名</span><span class="v">#${esc(r.rank) || "-"}</span></div>
@@ -964,13 +1117,17 @@ function bindEvents() {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
     t.classList.add("active");
     TAB = t.dataset.tab;
-    DISPLAY_LIMIT = RENDER_STEP;
+    DISPLAY_LIMIT = INITIAL_RENDER;
     renderPool();
   }));
-  ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
-    const rerender = () => { DISPLAY_LIMIT = RENDER_STEP; renderPool(); };
+  ["f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-sales7d","f-sales1d","f-sales3d","f-gpm"].forEach(initMultiSelect);
+  ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-sales7d","f-sales1d","f-sales3d","f-gpm","f-sort"].forEach(id => {
+    const rerender = () => { DISPLAY_LIMIT = INITIAL_RENDER; renderPool(); };
     document.getElementById(id).addEventListener("input", rerender);
     document.getElementById(id).addEventListener("change", rerender);
+  });
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".multi-select")) closeAllMultiSelects();
   });
 
   const contentEl = document.getElementById("content");
@@ -988,7 +1145,7 @@ function bindEvents() {
   // 卡片 click：区分 PID 链接 / 打开 Modal（pick 已在 pointerdown 处理）
   contentEl.addEventListener("click", e => {
     if (e.target.closest("#btn-load-more")) {
-      DISPLAY_LIMIT += RENDER_STEP;
+      DISPLAY_LIMIT += LOAD_MORE_STEP;
       renderPool();
       return;
     }
@@ -1010,10 +1167,17 @@ function bindEvents() {
   });
   document.getElementById("btn-refresh").addEventListener("click", () => location.reload());
   document.getElementById("btn-reset").addEventListener("click", () => {
-    ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-gpm"].forEach(id => {
-      document.getElementById(id).value = "";
+    ["q","f-main-country","f-listed-country","f-cat2","f-cat3","f-listing","f-price","f-stock","f-growth","f-buyer","f-sps","f-jit","f-video","f-sales7d","f-sales1d","f-sales3d","f-gpm","f-sort"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el.multiple) {
+        [...el.options].forEach(opt => { opt.selected = false; });
+        refreshMultiSelect(id);
+      } else {
+        el.value = "";
+      }
     });
-    DISPLAY_LIMIT = RENDER_STEP;
+    closeAllMultiSelects();
+    DISPLAY_LIMIT = INITIAL_RENDER;
     renderPool();
   });
   document.getElementById("btn-export").addEventListener("click", exportCSV);
@@ -1043,6 +1207,8 @@ const EXPORT_COLUMNS = [
   ["deal_price",           "到手价(USD)"],
   ["stock",                "库存"],
   ["近7天销量分档",        "近7天销量分档"],
+  ["近1天销量",            "近1天销量"],
+  ["近3天销量",            "近3天销量"],
   ["增速分级",             "增速分级"],
   ["P0丰富度标签",         "P0丰富度标签"],
   ["GPM分层",              "GPM分层"],
@@ -1052,6 +1218,11 @@ const EXPORT_COLUMNS = [
   ["has_combo_sku",        "是否组合SKU"],
   ["rank",                 "榜单排名"],
 ];
+const EXPORT_VALUE_FIELDS = new Set(["近7天销量分档", "近1天销量", "近3天销量"]);
+function exportValue(r, k) {
+  if (EXPORT_VALUE_FIELDS.has(k)) return salesLabel(r, k);
+  return r[k];
+}
 
 function csvEscape(v) {
   const s = v == null ? "" : String(v);
@@ -1096,7 +1267,7 @@ function exportCSV() {
   const bodyLines = baseRows.map(r => {
     const { byCountry, spuCountryCount, spuPidCount } = buildExpandedPidByCountry(r.spu_code, r);
     const line = [
-      ...EXPORT_COLUMNS.map(([k]) => csvEscape(r[k])),
+      ...EXPORT_COLUMNS.map(([k]) => csvEscape(exportValue(r, k))),
       ...countryCols.map(c => csvEscape((byCountry[c] || []).join(","))),
       csvEscape(spuCountryCount),
       csvEscape(spuPidCount),
@@ -1175,7 +1346,7 @@ async function exportExcelWithImages() {
     const r = baseRows[i];
     const rowIndex = i + 2;
     const rowObj = {};
-    EXPORT_COLUMNS.forEach(([k]) => { rowObj[k] = r[k] == null ? "" : String(r[k]); });
+    EXPORT_COLUMNS.forEach(([k]) => { rowObj[k] = exportValue(r, k) == null ? "" : String(exportValue(r, k)); });
     ws.addRow({ img: "", ...rowObj });
 
     // 行高：给图片留空间
@@ -1234,7 +1405,22 @@ Promise.all([
   fillSelect("f-cat2", uniqSorted(ALL.map(r => r.second_category_name)));
   fillSelect("f-cat3", uniqSorted(ALL.map(r => r.third_category_name)));
   fillSelect("f-video", ["<30%", "30-50%", "50-70%", "70%+", "未知"]);
+  const SALES_BUCKET_OPTIONS = ["0件", "1-10件", "10-30件", "30-50件", "50-70件", "70-100件", "100-300件", "300-500件", "500-1000件", "1000件+"];
+  fillSelect("f-sales7d", SALES_BUCKET_OPTIONS);
+  fillSelect("f-sales1d", SALES_BUCKET_OPTIONS);
+  fillSelect("f-sales3d", SALES_BUCKET_OPTIONS);
   fillSelect("f-gpm", ["高GPM", "中GPM", "低GPM"]);
+  fillSelect("f-sort", ["近7天销量从高到低", "近7天销量从低到高", "近1天销量从高到低", "近1天销量从低到高", "近3天销量从高到低", "近3天销量从低到高"]);
+  const sortSelect = document.getElementById("f-sort");
+  [...sortSelect.options].forEach(o => {
+    if (o.textContent === "近7天销量从高到低") o.value = "sales_7d_desc";
+    if (o.textContent === "近7天销量从低到高") o.value = "sales_7d_asc";
+    if (o.textContent === "近1天销量从高到低") o.value = "sales_1d_desc";
+    if (o.textContent === "近1天销量从低到高") o.value = "sales_1d_asc";
+    if (o.textContent === "近3天销量从高到低") o.value = "sales_3d_desc";
+    if (o.textContent === "近3天销量从低到高") o.value = "sales_3d_asc";
+  });
+  sortSelect.value = "sales_7d_desc";
   fillSelect("f-listing", FILTER_OPTIONS.listing);
   fillSelect("f-price", FILTER_OPTIONS.price);
   fillSelect("f-stock", FILTER_OPTIONS.stock);
