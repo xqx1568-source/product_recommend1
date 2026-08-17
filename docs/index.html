@@ -96,16 +96,17 @@
   }
 
   /* ===== Filter bar (卡片式) ===== */
-  .filters-wrap { padding: 20px 40px 0; }
+  .filters-wrap { padding: 20px 40px 0; position: relative; z-index: 1; }
   .filters {
-    background:#fff; padding: 16px 18px; border-radius:14px;
+    background:rgba(255,255,255,.92); padding: 16px 18px; border-radius:18px;
     display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-md); border:1px solid rgba(109,91,208,.08);
+    backdrop-filter: blur(14px);
   }
-  .filter-field { display:flex; flex-direction:column; gap:5px; flex: 0 1 142px; min-width:128px; }
-  .filter-field.search-field { flex: 1 1 260px; min-width:220px; }
-  .filter-field label { font-size:11px; color:#666; line-height:1; padding-left:2px; }
-  .filter-hint { flex: 1 1 100%; font-size:12px; color:#777; margin-top:-4px; }
+  .filter-field { display:flex; flex-direction:column; gap:5px; flex: 0 1 146px; min-width:130px; }
+  .filter-field.search-field { flex: 1 1 300px; min-width:240px; }
+  .filter-field label { font-size:11px; color:#6b6683; line-height:1; padding-left:2px; font-weight:600; }
+  .filter-hint { flex: 1 1 100%; font-size:12px; color:#777; margin-top:-4px; line-height:1.6; background:#FAF9FE; border:1px dashed #E3DFF4; border-radius:10px; padding:8px 10px; }
   .filters input, .filters select {
     width:100%; height:40px; border:1px solid var(--line); border-radius:11px; padding: 0 12px;
     font-size:13px; background:#fff; color:var(--ink); outline:none;
@@ -434,6 +435,46 @@
   .country-table td a { color: var(--brand-strong); font-weight:600; }
   .country-table td a:hover { text-decoration: underline; }
   .country-table tr.current td { background: #FFF8FA; }
+
+  /* ===== 综合体验优化覆盖：更清晰、更适合高密度选品 ===== */
+  .stats { gap:16px; }
+  .stat { border-radius:18px; padding:18px 20px 14px; background:linear-gradient(135deg,#fff 0%,#FBFAFF 100%); border-color:rgba(109,91,208,.08); }
+  .stat::after { content:""; position:absolute; right:-28px; top:-28px; width:88px; height:88px; border-radius:50%; background:rgba(109,91,208,.07); }
+  .stat .num { font-size:28px; font-weight:800; letter-spacing:-.02em; }
+  .stat .label { font-weight:600; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap:16px; padding-bottom:28px; }
+  .card { border-radius:18px; border-color:rgba(109,91,208,.08); box-shadow:0 8px 22px rgba(27,27,46,.05); transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+  .card:hover { transform:translateY(-3px); box-shadow:0 14px 34px rgba(74,58,160,.13); border-color:rgba(109,91,208,.22); }
+  .card .cover::after { content:""; position:absolute; left:0; right:0; bottom:0; height:42%; background:linear-gradient(180deg,rgba(0,0,0,0),rgba(20,18,45,.22)); pointer-events:none; }
+  .card .body { gap:8px; padding:12px 13px 14px; }
+  .card .pid-line { display:flex; align-items:center; gap:4px; min-width:0; }
+  .card .pname { font-size:13px; line-height:1.42; font-weight:650; }
+  .card .shop, .card .cat, .card .country-lines { background:#FAFAFD; border:1px solid #F0EFF6; border-radius:10px; padding:6px 8px; }
+  .card .price-row { background:linear-gradient(135deg,#FFF7F8,#F8F5FF); border:1px solid #F0EAF8; border-radius:12px; padding:8px 9px; }
+  .card .price b { font-size:17px; font-weight:800; }
+  .card .tags { gap:5px; }
+  .tag { border-radius:999px; padding:3px 8px; }
+  .tag.rank { background:linear-gradient(135deg,#1B1B2E,#4A3AA0); }
+  .kpi-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .kpi { background:#fff; border:1px solid #EFEEF5; border-radius:11px; padding:7px 6px; min-width:0; }
+  .kpi .k { display:block; color:var(--muted); font-size:10px; margin-bottom:3px; white-space:nowrap; }
+  .kpi .v { display:block; color:var(--ink); font-size:12px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kpi.sales .v { color:#0D7A4E; }
+  .kpi.gpm .v { color:var(--gpm); }
+  .load-more { padding:13px 30px; font-size:14px; letter-spacing:.01em; }
+  .empty, .pool-empty { background:#fff; border:1px dashed #DED9EF; border-radius:16px; }
+  @media (max-width: 900px) {
+    .filters-wrap { padding:12px 14px 0; }
+    .stats { grid-template-columns: repeat(2, 1fr); padding:14px; }
+    .grid { padding:0 14px 24px; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap:12px; }
+    .card .shop, .card .cat { display:none; }
+    .kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width: 560px) {
+    .stats { grid-template-columns: 1fr; }
+    .filter-field, .filter-field.search-field { flex:1 1 100%; min-width:100%; }
+    .card .pname { -webkit-line-clamp:3; }
+  }
 </style>
 </head>
 <body>
@@ -970,12 +1011,12 @@ function cardHTML(r, idx) {
         <div class="listed-countries" title="全部：${esc(listedFmt.tooltip)}"><span class="lbl">上架国家：</span>${esc(listedFmt.text) || "-"}</div>
         <div class="current-country"><span class="lbl">当前PID国家：</span>${region}</div>
       </div>
-      <div class="price-row">
-        <span class="price"><span class="lbl">到手价：</span><b>$${esc(r.deal_price) || "-"}</b></span>
-        <span class="stock"><span class="lbl">库存：</span>${esc(r.stock) || 0}</span>
+      <div class="kpi-grid">
+        <div class="kpi"><span class="lbl">到手价</span><b>$${esc(r.deal_price) || "-"}</b></div>
+        <div class="kpi"><span class="lbl">库存</span><b>${esc(r.stock) || 0}</b></div>
+        <div class="kpi"><span class="lbl">排序</span><b>#${esc(r.rank) || (idx+1)}</b></div>
       </div>
       <div class="rank-line">
-        <span class="tag rank">#${esc(r.rank) || (idx+1)}</span>
         <span class="tag ${gpmClass(r["GPM分层"])}">${esc(r["GPM分层"]) || ""}</span>
       </div>
       <div class="tags">
